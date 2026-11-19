@@ -21,7 +21,8 @@ done
 # defaults, затем ~/.config/phonecam/settings переопределяет
 PC_RES="" PC_FPS=0 PC_BR="" PC_FACING=back PC_TORCH=0 PC_CODEC=h264 PC_ZOOM=1
 [ -f "$HOME/.config/phonecam/settings" ] && . "$HOME/.config/phonecam/settings"
-extra=()
+[ "$PC_BR" = "авто" ] && PC_BR=""
+[ "$PC_RES" = "авто" ] && PC_RES=""
 [ "$PC_FPS" != 0 ] && extra+=(--max-fps "$PC_FPS")
 [ "$PC_TORCH" = 1 ] && extra+=(--camera-torch)
 
