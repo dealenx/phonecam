@@ -16,6 +16,11 @@ const BR: [&str; 5] = ["авто", "8M", "16M", "24M", "40M"];
 const FPS: [&str; 3] = ["авто", "15", "30"];
 const FACING: [&str; 2] = ["задняя", "фронтальная"];
 const CODEC: [&str; 2] = ["h264", "h265"];
+const MODE: [(&str, &str); 3] = [
+    ("Окно с камерой", "on"),
+    ("Виртуальная камера", "vcam"),
+    ("ВЫКЛ", "off"),
+];
 
 fn config_path() -> std::path::PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
@@ -79,11 +84,11 @@ impl Settings {
         let _ = fs::write(config_path(), text);
     }
 }
-
 struct Phonecam {
     status: Vec<String>,
     output: Vec<String>,
     busy: bool,
+    mode: usize,
     set: Settings,
 }
 
@@ -97,10 +102,18 @@ impl Phonecam {
             Ok(o) => lines(&String::from_utf8_lossy(&o.stdout)),
             Err(e) => vec![format!("phonecam status не запустился: {e}")],
         };
+        let head = self.status.first().map(String::as_str).unwrap_or("");
+        self.mode = if head.contains("виртуалка") {
+            1
+        } else if head.contains("работает") {
+            0
+        } else {
+            2
+        };
         cx.notify();
     }
 
-    fn run(&mut self, arg: &'static str, cx: &mut Context<Self>) {
+    fn run(&mut self, arg: String, cx: &mut Context<Self>) {
         self.set.save();
         self.busy = true;
         self.output = vec!["...".into()];
@@ -173,18 +186,27 @@ fn row(label: &'static str, children: Vec<impl IntoElement>) -> impl IntoElement
         .child(div().flex().gap_1().children(children))
 }
 
-fn button(label: &'static str, arg: &'static str, cx: &Context<Phonecam>) -> impl IntoElement {
+fn mode_chip(
+    cx: &Context<Phonecam>,
+    i: usize,
+    label: &'static str,
+    arg: &'static str,
+    active: bool,
+) -> Stateful<Div> {
     div()
-        .id(label)
+        .id(SharedString::from(format!("mode{i}")))
         .px_3()
         .py_2()
         .rounded_md()
-        .bg(rgb(0x313244))
-        .hover(|s| s.bg(rgb(0x45475a)))
+        .bg(if active { rgb(0x89b4fa) } else { rgb(0x313244) })
+        .hover(|s| s.bg(if active { rgb(0x89b4fa) } else { rgb(0x45475a) }))
         .cursor_pointer()
-        .text_color(rgb(0xcdd6f4))
+        .text_color(if active { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
         .child(label)
-        .on_click(cx.listener(move |this, _, _, cx| this.run(arg, cx)))
+        .on_click(cx.listener(move |s, _, _, cx| {
+            s.mode = i;
+            s.run(arg.to_string(), cx);
+        }))
 }
 
 impl Render for Phonecam {
@@ -247,15 +269,6 @@ impl Render for Phonecam {
                     .map(|(i, l)| {
                         chip(cx, format!("facing{i}"), (*l).to_string(), i == cur.facing, move |s| s.facing = i)
                     })
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .chain([chip(
-                        cx,
-                        "torch".to_string(),
-                        if cur.torch { "фонарик вкл".to_string() } else { "фонарик".to_string() },
-                        cur.torch,
-                        |s| s.torch = !s.torch,
-                    )])
                     .collect(),
             ))
             .child(row(
@@ -268,15 +281,25 @@ impl Render for Phonecam {
                     })
                     .collect(),
             ))
+            .child(row(
+                "Фонарик",
+                ["выкл", "вкл"]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, l)| {
+                        chip(cx, format!("torch{i}"), (*l).to_string(), i == usize::from(cur.torch), move |s| s.torch = i == 1)
+                    })
+                    .collect(),
+            ))
             .child(div().h_1().bg(rgb(0x313244)))
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(button("OBS 4K (окно)", "on", cx))
-                    .child(button("Виртуалка", "vcam", cx))
-                    .child(button("Выкл.", "off", cx)),
-            )
+            .child(row(
+                "Режим",
+                MODE
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (l, a))| mode_chip(cx, i, l, a, i == self.mode))
+                    .collect(),
+            ))
             .child(div().flex().flex_col().gap_1().children(output))
     }
 }
@@ -299,6 +322,7 @@ fn main() {
                         status: vec![],
                         output: vec![],
                         busy: false,
+                        mode: 0,
                         set: Settings::load(),
                     };
                     app.refresh(cx);
