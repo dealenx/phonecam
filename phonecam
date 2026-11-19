@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Камера телефона: phonecam [on|vcam|off|status]
+#   on   — 4K-окно IN2023 (GPU-декод), для OBS через Window Capture
+#   vcam — виртуальная камера scrcpy-camera (/dev/video0), для Zoom/Discord напрямую
+# Настройки (разрешение/битрейт/FPS/камера/фонарик/кодек) — ~/.config/phonecam/settings, пишет GUI.
+# shortcut: vcam без --hwdec (запрет scrcpy), софт-декод; 4K в vcam может отставать — потолок 1080p
+dev="$(adb devices 2>/dev/null | awk '$2=="device"{print $1; exit}')"
+phone_missing() {
+    un="$(adb devices 2>/dev/null | awk '$2=="unauthorized"{print $1; exit}')"
+    if [ -n "$un" ]; then echo "телефон $un не авторизован — нажми «Разрешить» на экране"
+    else echo "телефон не найден — включи USB-отладку и переподключи кабель"; fi
+}
+
+# defaults, затем ~/.config/phonecam/settings переопределяет
+PC_RES="" PC_FPS=0 PC_BR="" PC_FACING=back PC_TORCH=0 PC_CODEC=h264
+[ -f "$HOME/.config/phonecam/settings" ] && . "$HOME/.config/phonecam/settings"
+extra=()
+[ "$PC_FPS" != 0 ] && extra+=(--max-fps "$PC_FPS")
+[ "$PC_TORCH" = 1 ] && extra+=(--camera-torch)
+
+case "${1:-on}" in
+on)
+    if pgrep -x scrcpy >/dev/null; then pkill -x scrcpy; pkill -f scrcpy-server; sleep 1; fi
+    if [ -z "$dev" ]; then phone_missing; exit 1; fi
+    setsid -f scrcpy --video-source=camera --camera-facing="$PC_FACING" \
+        --camera-size="${PC_RES:-3840x2160}" --video-bit-rate="${PC_BR:-40M}" \
+        --video-codec="$PC_CODEC" --hwdec=vaapi --no-audio "${extra[@]}" \
+        >/tmp/phonecam.log 2>&1
+    sleep 2
+    if pgrep -x scrcpy >/dev/null; then echo "камера запущена: 4K-окно IN2023 (в OBS: Window Capture)"
+    else echo "не запустилась, лог: /tmp/phonecam.log"; exit 1; fi
+    ;;
+vcam)
+    if [ ! -e /dev/video0 ]; then echo "/dev/video0 нет — v4l2loopback не загружен (sudo modprobe v4l2loopback)"; exit 1; fi
+    if pgrep -x scrcpy >/dev/null; then pkill -x scrcpy; pkill -f scrcpy-server; sleep 1; fi
+    if [ -z "$dev" ]; then phone_missing; exit 1; fi
+    res="${PC_RES:-1920x1080}"
+    [ "${res%%x*}" -gt 1920 ] && { res=1920x1080; echo "(виртуалка ограничена 1080p — 4K на софт-декоде отстаёт)"; }
+    setsid -f scrcpy --video-source=camera --camera-facing="$PC_FACING" \
+        --camera-size="$res" --video-bit-rate="${PC_BR:-24M}" --video-codec="$PC_CODEC" \
+        --v4l2-sink=/dev/video0 --no-playback --no-audio "${extra[@]}" \
+        >/tmp/phonecam.log 2>&1
+    ok=
+    fps_txt=$([ "$PC_FPS" != 0 ] && echo "$PC_FPS" || echo auto)
+    for _ in 1 2 3 4 5 6; do
+        sleep 1
+        P=$(pgrep -x scrcpy | head -1)
+        [ -n "$P" ] || break
+        w=$(awk '/^wchar/{print $2}' /proc/$P/io)
+        if [ "${w:-0}" -gt 10000000 ]; then ok=1; break; fi
+    done
+    if [ -n "$ok" ]; then
+        echo "виртуальная камера работает: scrcpy-camera (/dev/video0, ${res} @ ${fps_txt}fps)"
+        echo "выбирай её в Zoom/Discord/OBS — видна в списке камер сразу"
+    else echo "не запустилась, лог: /tmp/phonecam.log"; exit 1; fi
+    ;;
+off)
+    pkill -x scrcpy 2>/dev/null; pkill -f scrcpy-server 2>/dev/null
+    echo "камера выключена"
+    ;;
+status)
+    cmd="$(tr '\0' ' ' < /proc/$(pgrep -x scrcpy | head -1)/cmdline 2>/dev/null)"
+    case "$cmd" in
+    *v4l2-sink*) echo "камера: виртуалка scrcpy-camera 1080p (/dev/video0)";;
+    *scrcpy*)    echo "камера: работает (4K, окно IN2023)";;
+    *)           echo "камера: выключена";;
+    esac
+    if [ -n "$dev" ]; then echo "телефон: $dev"; else phone_missing; fi
+    ;;
+*)
+    echo "usage: phonecam [on|vcam|off|status]"; exit 1
+    ;;
+esac
