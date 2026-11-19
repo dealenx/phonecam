@@ -13,7 +13,11 @@ phone_missing() {
 need_scrcpy() {
     command -v scrcpy >/dev/null || { echo "scrcpy не установлен — поставь пакет scrcpy (см. README)"; exit 1; }
 }
-
+dev=""
+for _ in 1 2; do
+    dev="$(adb devices 2>/dev/null | awk '$2=="device"{print $1; exit}')"
+    [ -n "$dev" ] || sleep 1
+done
 # defaults, затем ~/.config/phonecam/settings переопределяет
 PC_RES="" PC_FPS=0 PC_BR="" PC_FACING=back PC_TORCH=0 PC_CODEC=h264
 [ -f "$HOME/.config/phonecam/settings" ] && . "$HOME/.config/phonecam/settings"
