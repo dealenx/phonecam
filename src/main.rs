@@ -256,11 +256,7 @@ impl Render for Phonecam {
                             .text_color(rgb(0xcdd6f4))
                             .text_sm()
                             .child("✕")
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                if let Some(h) = s.win.take() {
-                                    let _ = h.update(cx, |_, w, _| w.remove_window());
-                                }
-                            })),
+                            .on_click(|_, window, _| window.remove_window()),
                     ),
             )
             .child(div().flex().flex_col().gap_1().children(status))
