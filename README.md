@@ -1,5 +1,11 @@
 # phonecam
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/dealenx/phonecam/master/install.sh | bash
+```
+
+Ставит `phonecam` и `phonecam-gui` в `~/.local/bin`, без sudo.
+
 Камера Android-телефона на Linux-ПК для OBS: либо 4K-окно (GPU-декод),
 либо виртуальная камера `/dev/video0`. Без приложений на телефоне — только scrcpy + adb.
 
