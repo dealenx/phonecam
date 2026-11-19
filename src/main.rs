@@ -96,6 +96,7 @@ struct Phonecam {
     busy: bool,
     mode: usize,
     set: Settings,
+    win: Option<gpui::WindowHandle<Phonecam>>,
 }
 
 fn lines(s: &str) -> Vec<String> {
@@ -237,7 +238,31 @@ impl Render for Phonecam {
             .size_full()
             .bg(rgb(0x1e1e2e))
             .text_color(rgb(0xcdd6f4))
-            .child(div().text_lg().font_weight(FontWeight::BOLD).child("phonecam"))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(div().text_lg().font_weight(FontWeight::BOLD).child("phonecam"))
+                    .child(
+                        div()
+                            .id("close")
+                            .px_2()
+                            .py_1()
+                            .rounded_md()
+                            .bg(rgb(0x313244))
+                            .hover(|s| s.bg(rgb(0xf38ba8)))
+                            .cursor_pointer()
+                            .text_color(rgb(0xcdd6f4))
+                            .text_sm()
+                            .child("✕")
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                if let Some(h) = s.win.take() {
+                                    let _ = h.update(cx, |_, w, _| w.remove_window());
+                                }
+                            })),
+                    ),
+            )
             .child(div().flex().flex_col().gap_1().children(status))
             .child(div().h_1().bg(rgb(0x313244)))
             .child(row(
@@ -322,29 +347,32 @@ impl Render for Phonecam {
 fn main() {
     Application::new().run(|cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(480.), px(560.)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(gpui::TitlebarOptions {
-                    title: Some("phonecam".into()),
+        let handle = cx
+            .open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(gpui::TitlebarOptions {
+                        title: Some("phonecam".into()),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            },
-            |_, cx| {
-                cx.new(|cx| {
-                    let mut app = Phonecam {
-                        status: vec![],
-                        output: vec![],
-                        busy: false,
-                        mode: 0,
-                        set: Settings::load(),
-                    };
-                    app.refresh(cx);
-                    app
-                })
-            },
-        )
-        .unwrap();
+                },
+                |_, cx| {
+                    cx.new(|cx| {
+                        let mut app = Phonecam {
+                            status: vec![],
+                            output: vec![],
+                            busy: false,
+                            mode: 0,
+                            set: Settings::load(),
+                            win: None,
+                        };
+                        app.refresh(cx);
+                        app
+                    })
+                },
+            )
+            .unwrap();
+        let _ = handle.update(cx, |s, _, _| s.win = Some(handle));
     });
 }
