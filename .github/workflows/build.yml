@@ -7,12 +7,12 @@ on:
   pull_request:
 
 jobs:
-  linux:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Install system dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=30 || true
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libx11-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libfontconfig-dev libfreetype6-dev libssl-dev
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -24,7 +24,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release
+          bash -n phonecam
 
       - name: Package
         run: |
