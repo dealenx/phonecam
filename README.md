@@ -10,23 +10,34 @@ sudo pacman -S scrcpy android-tools v4l-utils v4l2loopback-dkms   # Arch/CachyOS
 sudo apt install scrcpy adb v4l-utils v4l2loopback-dkms           # Ubuntu/Debian
 ```
 
-Модуль loopback с именем камеры:
+Для сборки GUI дополнительно нужен Rust: <https://rustup.rs>.
+
+Модуль loopback с именем камеры (для `phonecam vcam`; `phonecam on` его не требует):
 
 ```bash
 sudo tee /etc/modprobe.d/plugcam.conf <<'EOF2'
-options v4l2loopback exclusive_caps=1 devices=5 card_label="scrcpy-camera,Iriun Webcam,Iriun Webcam #2,Iriun Webcam #3,Iriun Webcam #4"
+options v4l2loopback exclusive_caps=1 devices=1 card_label="scrcpy-camera"
 EOF2
 echo v4l2loopback | sudo tee /etc/modules-load.d/plugcam.conf
 sudo modprobe v4l2loopback
 ```
 
+Несколько устройств — через запятую в `card_label`; у нас добавлены слоты под Iriun.
+
 Телефон: *Настройки → О телефоне → 7 раз по номеру сборки* → *Для разработчиков →
 Отладка по USB*; режим USB — «Передача файлов».
+
+## Быстрая проверка
+
+```bash
+phonecam status   # телефон найден? камера выключена? — значит всё стоит
+phonecam vcam     # виртуалка должна подняться за ~2 с
+```
 
 ## Скрипт
 
 ```bash
-install -Dm755 phonecam ~/.local/bin/phonecam
+install -Dm755 phonecam ~/.local/bin/phonecam   # из каталога репо
 phonecam on      # 4K-окно IN2023 (GPU-декод) — в OBS через Window Capture
 phonecam vcam    # виртуалка scrcpy-camera 1080p30 — в приложениях сразу
 phonecam off     # выключить
@@ -36,7 +47,7 @@ phonecam status  # что запущено + состояние телефона
 ## GUI (GPUI)
 
 ```bash
-cargo build --release
+cargo build --release        # первая сборка ~5–10 минут (грузится дерево gpui)
 ./target/release/phonecam-gui
 ```
 
