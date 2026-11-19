@@ -21,7 +21,8 @@ const MODE: [(&str, &str); 3] = [
     ("Виртуальная камера", "vcam"),
     ("ВЫКЛ", "off"),
 ];
-
+const ZOOM: [&str; 3] = ["1×", "2×", "5×"];
+const ZOOM_VAL: [&str; 3] = ["1", "2", "5"];
 fn config_path() -> std::path::PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
     std::path::PathBuf::from(home).join(".config/phonecam/settings")
@@ -35,6 +36,7 @@ struct Settings {
     facing: usize,
     codec: usize,
     torch: bool,
+    zoom: usize,
 }
 
 impl Settings {
@@ -46,6 +48,7 @@ impl Settings {
             facing: 0,
             codec: 0,
             torch: false,
+            zoom: 0,
         };
         if let Ok(text) = fs::read_to_string(config_path()) {
             for line in text.lines() {
@@ -62,7 +65,9 @@ impl Settings {
                     }
                     "PC_FACING" => s.facing = usize::from(v == "front"),
                     "PC_CODEC" => s.codec = usize::from(v == "h265"),
-                    "PC_TORCH" => s.torch = v == "1",
+                    "PC_ZOOM" => {
+                        if let Some(i) = ZOOM_VAL.iter().position(|val| *val == v) { s.zoom = i }
+                    }
                     _ => {}
                 }
             }
@@ -73,13 +78,14 @@ impl Settings {
     fn save(&self) {
         let _ = fs::create_dir_all(config_path().parent().unwrap());
         let text = format!(
-            "PC_RES={}\nPC_BR={}\nPC_FPS={}\nPC_FACING={}\nPC_TORCH={}\nPC_CODEC={}\n",
+            "PC_RES={}\nPC_BR={}\nPC_FPS={}\nPC_FACING={}\nPC_TORCH={}\nPC_CODEC={}\nPC_ZOOM={}\n",
             RES[self.res].1,
             BR[self.br],
             if self.fps == 0 { "0" } else { FPS[self.fps] },
             if self.facing == 0 { "back" } else { "front" },
             usize::from(self.torch),
             CODEC[self.codec],
+            ZOOM_VAL[self.zoom],
         );
         let _ = fs::write(config_path(), text);
     }
@@ -278,6 +284,15 @@ impl Render for Phonecam {
                     .enumerate()
                     .map(|(i, l)| {
                         chip(cx, format!("codec{i}"), (*l).to_string(), i == cur.codec, move |s| s.codec = i)
+                    })
+                    .collect(),
+            ))
+            .child(row(
+                "Зум",
+                ZOOM.iter()
+                    .enumerate()
+                    .map(|(i, l)| {
+                        chip(cx, format!("zoom{i}"), (*l).to_string(), i == cur.zoom, move |s| s.zoom = i)
                     })
                     .collect(),
             ))
