@@ -4,11 +4,14 @@
 #   vcam — виртуальная камера scrcpy-camera (/dev/video0), для Zoom/Discord напрямую
 # Настройки (разрешение/битрейт/FPS/камера/фонарик/кодек) — ~/.config/phonecam/settings, пишет GUI.
 # shortcut: vcam без --hwdec (запрет scrcpy), софт-декод; 4K в vcam может отставать — потолок 1080p
-dev="$(adb devices 2>/dev/null | awk '$2=="device"{print $1; exit}')"
 phone_missing() {
+    command -v adb >/dev/null || { echo "adb не установлен — поставь android-tools (см. README)"; return; }
     un="$(adb devices 2>/dev/null | awk '$2=="unauthorized"{print $1; exit}')"
     if [ -n "$un" ]; then echo "телефон $un не авторизован — нажми «Разрешить» на экране"
     else echo "телефон не найден — включи USB-отладку и переподключи кабель"; fi
+}
+need_scrcpy() {
+    command -v scrcpy >/dev/null || { echo "scrcpy не установлен — поставь пакет scrcpy (см. README)"; exit 1; }
 }
 
 # defaults, затем ~/.config/phonecam/settings переопределяет
@@ -20,7 +23,7 @@ extra=()
 
 case "${1:-on}" in
 on)
-    if pgrep -x scrcpy >/dev/null; then pkill -x scrcpy; pkill -f scrcpy-server; sleep 1; fi
+    need_scrcpy
     if [ -z "$dev" ]; then phone_missing; exit 1; fi
     setsid -f scrcpy --video-source=camera --camera-facing="$PC_FACING" \
         --camera-size="${PC_RES:-3840x2160}" --video-bit-rate="${PC_BR:-40M}" \
@@ -31,7 +34,7 @@ on)
     else echo "не запустилась, лог: /tmp/phonecam.log"; exit 1; fi
     ;;
 vcam)
-    if [ ! -e /dev/video0 ]; then echo "/dev/video0 нет — v4l2loopback не загружен (sudo modprobe v4l2loopback)"; exit 1; fi
+    need_scrcpy
     if pgrep -x scrcpy >/dev/null; then pkill -x scrcpy; pkill -f scrcpy-server; sleep 1; fi
     if [ -z "$dev" ]; then phone_missing; exit 1; fi
     res="${PC_RES:-1920x1080}"
